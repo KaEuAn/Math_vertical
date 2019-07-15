@@ -1,20 +1,25 @@
 #coding=utf-8
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import json
 
 def column_letter(column_number):
     return chr(ord('A')  - 1 + column_number)
 
+fi = open("sheets.json", "r", encoding='utf-8')
+sheets = json.load(fi)
+fi.close()
+
 class google_tables:
-    def __init__(self, docs_name="Рассылки", wks_name="Координаторы", gc_prev=None):
-        if gc_prev == None:
+    def __init__(self, docs_name="Рассылки", wks_name="Координаторы", gt_prev=None):
+        if gt_prev == None:
             scope = ['https://spreadsheets.google.com/feeds',
             'https://www.googleapis.com/auth/drive']
             credentials = ServiceAccountCredentials.from_json_keyfile_name('..//..//keys//math vertical-c8b635a4089b.json', scope)
-            self.gc = gspread.authorize(credentials)
+            self.gt = gspread.authorize(credentials)
         else:
-            self.gc = gc_prev
-        self.wks = self.gc.open("Рассылки")
+            self.gt = gt_prev
+        self.wks = self.gt.open("Рассылки")
         self.sheet = self.wks.worksheet("Координаторы")
         self.row_count = self.sheet.row_count
 
@@ -62,10 +67,19 @@ class google_tables:
             if item == 0:
                 print("no mail for school", sch)
     
-    def remove_copy(self):
+    def detect_copy(self):
         cell_table = self.get_cell_table(columns = [1,3])
+        mails = {}
+        for i in range(len(cell_table)):
+            if cell_table[i][0] != '' and cell_table[i][1] != '':
+                mails_list = cell_table[i][2].split(', ')
+                for mail in mails_list:
+                    if mail in mails.keys():
+                        print("in row {} detected repeat with row {}, mail {}".format(i + 1, mails[mail], mail))
 
-
-if __name__ == "__main__":
+def get_mails_by_school():
     gt = google_tables(wks_name="участники семинаров")
     gt.get_mails_by_school()
+
+if __name__ == "__main__":
+    get_mails_by_school()
