@@ -11,17 +11,18 @@ sheets = json.load(fi)
 fi.close()
 
 class google_tables:
-    def __init__(self, docs_name="Рассылки", wks_name="Координаторы", gt_prev=None):
-        if gt_prev == None:
+    def __init__(self, docs_name="Рассылки", wks_name="Координаторы", gc_prev=None):
+        if gc_prev == None:
             scope = ['https://spreadsheets.google.com/feeds',
             'https://www.googleapis.com/auth/drive']
             credentials = ServiceAccountCredentials.from_json_keyfile_name('..//..//keys//math vertical-c8b635a4089b.json', scope)
-            self.gt = gspread.authorize(credentials)
+            self.gc = gspread.authorize(credentials)
         else:
-            self.gt = gt_prev
-        self.wks = self.gt.open("Рассылки")
-        self.sheet = self.wks.worksheet("Координаторы")
+            self.gc = gc_prev
+        self.wks = self.gc.open(docs_name)
+        self.sheet = self.wks.worksheet(wks_name)
         self.row_count = self.sheet.row_count
+        print(self.row_count)
 
     def get_cell_list(self, rows = [1, -1], columns = [1, 2]):
         #numeration starts with 1 as like in google tables  
@@ -71,15 +72,25 @@ class google_tables:
         cell_table = self.get_cell_table(columns = [1,3])
         mails = {}
         for i in range(len(cell_table)):
-            if cell_table[i][0] != '' and cell_table[i][1] != '':
-                mails_list = cell_table[i][2].split(', ')
+            if cell_table[i][0].value != '' and cell_table[i][1].value != '':
+                mails_list = cell_table[i][2].value.split(', ')
                 for mail in mails_list:
                     if mail in mails.keys():
                         print("in row {} detected repeat with row {}, mail {}".format(i + 1, mails[mail], mail))
+                    else:
+                        mails[mail] = i + 1
 
 def get_mails_by_school():
     gt = google_tables(wks_name="участники семинаров")
     gt.get_mails_by_school()
 
+def check_copies():
+    gc = None
+    for sheet in sheets:
+        gt = google_tables(gc_prev = gc, wks_name=sheet)
+        gt.detect_copy()
+        gc = gt.gc
+
 if __name__ == "__main__":
-    get_mails_by_school()
+    #get_mails_by_school()
+    check_copies()
