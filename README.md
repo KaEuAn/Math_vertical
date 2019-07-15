@@ -1,0 +1,1 @@
+This is the library for simplifying My work with google documents
