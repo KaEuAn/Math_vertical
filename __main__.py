@@ -24,16 +24,16 @@ class google_tables:
         self.row_count = self.sheet.row_count
         print(self.row_count)
 
-    def get_cell_list(self, rows = [1, -1], columns = [1, 2]):
+    def get_cell_list(self, rows = (1, -1), columns = (1, 2)):
         #numeration starts with 1 as like in google tables  
         if rows[1] == -1:
-            rows[1] = self.row_count
+            rows = (rows[0], self.row_count)
         cell_string = column_letter(columns[0]) + str(rows[0]) + ':' + column_letter(columns[1]) + str(rows[1])
         cell_table = self.sheet.range(cell_string)
         return cell_table
 
-    def get_cell_table(self, rows = [1, -1], columns = [1, 2]):
-        cell_list = self.get_cell_list(rows, columns)
+    def get_cell_table(self, rows = (1, -1), columns = (1, 2)):
+        cell_list = self.get_cell_list(rows=rows, columns=columns)
         cell_table = []
         i = 0
         cur_col = 0
@@ -48,7 +48,7 @@ class google_tables:
 
  
     def get_mails_by_school(self):
-        cell_table = self.get_cell_table(columns = [1,3])
+        cell_table = self.get_cell_table(columns = (1,3))
         schools = {}
         print("insert numbers/names of schools:")
         for name in input().split(', '):
@@ -72,11 +72,12 @@ class google_tables:
         cell_table = self.get_cell_table(columns = [1,3])
         mails = {}
         for i in range(len(cell_table)):
-            if cell_table[i][0].value != '' and cell_table[i][1].value != '':
+            if cell_table[i][0].value != '' and cell_table[i][1].value != '' and cell_table[i][2].value != '':
                 mails_list = cell_table[i][2].value.split(', ')
                 for mail in mails_list:
                     if mail in mails.keys():
-                        print("in row {} detected repeat with row {}, mail {}".format(i + 1, mails[mail], mail))
+                        print("in row {} detected repeat with row {}, mail {}, sheet {}".format(
+                            i + 1, mails[mail], mail, self.sheet.title))
                     else:
                         mails[mail] = i + 1
 
