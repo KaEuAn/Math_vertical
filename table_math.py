@@ -5,6 +5,7 @@ import json
 from collections import Iterable
 import time
 
+
 def column_letter(column_number):
     if column_number == -1:
         return 'ZZZZZZ'
@@ -39,7 +40,8 @@ class google_tables:
         if isinstance(column, int):
             column = column_letter(column)
         st = column + str(start_row) + ':' + column + str(end_row)
-        values = list(map(list, values))
+        values = list(map(lambda x: [x], values))
+        print("update range: ", st)
         self.sheet.update(st, values)
 
     def get_cell_list(self, rows = (1, -1), columns = (1, 2)):
@@ -93,11 +95,11 @@ class google_tables:
             if item == 0:
                 print("no mail for school", sch)
     
-    def detect_copy(self, working_columns = [1,3]):
+    def detect_copies(self, working_columns = [1,3]):
         self.get_cell_table(columns = working_columns)
         mails = {}
         for i in range(len(self.table)):
-            if self.table[i][0] != '' and self.table[i][1] != '' and self.table[i][2] != '':
+            if self.table[i][2] != '':
                 mails_list = self.table[i][2].split(', ')
                 for mail in mails_list:
                     if mail.upper() in mails.keys():
@@ -105,6 +107,53 @@ class google_tables:
                             i + 1, mails[mail.upper()], mail, self.sheet.title))
                     else:
                         mails[mail.upper()] = i + 1
+                        
+    def delete_copies(self, working_columns = [1, 3]):
+        self.get_cell_table(columns = working_columns)
+        mails = {}
+        new_columns = [[], [], []]
+        start_row = -1
+        for i in range(len(self.table)):
+            if self.table[i][2] != '':
+                mails_list = self.table[i][2].split(', ')
+                for mail in mails_list:
+                    if mail.upper() in mails.keys():
+                        if start_row == -1:
+                            start_row = i                        
+                        print("in row {} detected repeat with row {}, mail {}, sheet {}".format(
+                            i + 1, mails[mail.upper()], mail, self.sheet.title))
+                        for j in range(3):
+                            new_columns[j].append('')
+                    else:
+                        if start_row != -1:
+                            for j in range(3):
+                                new_columns[j].append(self.table[i][j])                      
+                        mails[mail.upper()] = i + 1
+            elif start_row != -1:
+                for j in range(3):
+                    new_columns[j].append(self.table[i][j])
+        if start_row != -1:
+            for j in range(3):
+                self.update_sheet_column(working_columns[0] + j, new_columns[j], start_row + 1)
+                
+    def compress(self, working_columns = [1, 3], start_row=233):
+        self.get_cell_table(columns = working_columns)
+        mails = {}
+        new_columns = [[], [], []]
+        new_columns_proto = [[], [], []]
+        for i in range(start_row, len(self.table)):
+            for j in range(3):
+                new_columns[j].append('')
+            if not (self.table[i][2] == '' and self.table[i][1] == '' and self.table[i][0] == ''):
+                for j in range(3):
+                    new_columns_proto[j].append(self.table[i][j])
+        for j in range(3):
+            for i in range(len(new_columns_proto[j])):
+                new_columns[j][i] = new_columns_proto[j][i]
+
+            self.update_sheet_column(working_columns[0] + j, new_columns[j], start_row + 1) 
+            
+                
                         
     def detect_if_in_table(self):
         new_mails = self.get_input()
@@ -165,13 +214,19 @@ class MyTables:
         self.do_for_all_sheets(google_tables.get_mails_by_school)
         
     def check_copies(self):
-        return self.do_for_all_sheets(google_tables.detect_copy)
+        return self.do_for_all_sheets(google_tables.detect_copies)
             
     def check_detection(self):
         return self.do_for_all_sheets(google_tables.detect_if_in_table)
+    
+    def delete_copies(self):
+        return self.do_for_all_sheets(google_tables.delete_copies)
         
     def check_kruzki(self):
-        self.proceed_function(google_tables.detect_copy, [3,5])
+        self.proceed_function(google_tables.detect_copies, [3,5])
+        
+    def compress(self):
+        self.proceed_function(google_tables.compress)
     #old functions end    
         
         
@@ -182,11 +237,14 @@ class FormTable(MyTables):
     def get_marks(self, **params):
         marks_by_mail = self.proceed_function(google_tables.get_marks, **params)[0]
         self.marks_by_mails = {}
+        self.max_mark = -1
         for key, value in marks_by_mail.items():
             self.marks_by_mails[key] = 0
             for val in value:
-                self.marks_by_mails[key] = max(int(val.split(' / ')[0]), self.marks_by_mails[key])
-                self.max_mark = int(val.split(' / ')[1])               
+                splited = val.split(' / ')
+                self.marks_by_mails[key] = max(int(splited[0]), self.marks_by_mails[key])
+                if len(splited) > 1:
+                    self.max_mark = int(splited[1])               
         
 class RecordTable(MyTables):
     def __init__(self, doc_name="Ведомость", sheets=["Лист1"]):
@@ -205,18 +263,18 @@ class RecordTable(MyTables):
 def load_table(column_by_sheet):
     rt = RecordTable()
     rt.get_table()
-    for sheet, item in column_by_sheet.items():
-        column, params, is_done = item
+    for sheet, column, params, form_table_params, is_done in column_by_sheet:
         if is_done:
             continue
-        ft = FormTable(sheet)
+        ft = FormTable(sheet, **form_table_params)
         ft.get_marks(**params)
         
-        #get net column
+        #get new column
         new_column = []
         for i in range(247):
             new_column.append([0])
-        new_column[0][0] = ft.max_mark
+        if ft.max_mark > 0:
+            new_column[0][0] = ft.max_mark
         for mail, mark in ft.marks_by_mails.items():
             if mail not in rt.row_by_mail.keys():
                 print("can't find mail {} with mark {}".format(mail, mark))
@@ -231,7 +289,27 @@ def load_simple_columns():
         column_by_sheet = json.load(fi)
     load_table(column_by_sheet)
     
+    
+def get_mails():
+    my_table = MyTables(sheets=["Координаторы"])
+    my_table.get_mails_by_school()
+    
+def check_copies():
+    my_table = MyTables(sheets=["участники семинаров"])
+    my_table.check_copies()
+    
+def check_detection():
+    my_table = MyTables(sheets=["участники семинаров"])
+    my_table.check_detection()    
+    
+def delete_copies():
+    my_table = MyTables(sheets=["участники семинаров"])
+    my_table.delete_copies()
+    
+def compress():
+    my_table = MyTables(sheets=["участники семинаров"])
+    my_table.compress()    
+    
+
 if __name__ == "__main__":
-    load_simple_columns()
-    #check_kruzki()
-    #check_copies()
+    compress()
